@@ -17,12 +17,13 @@ end
 
 function Inbox.Header(i)
 	if not GetInboxHeaderInfo then return nil end
-	local _, _, sender, subject, money, cod, daysLeft, items, _, wasReturned, _, canReply, isGM = GetInboxHeaderInfo(i)
+	local package, stationery, sender, subject, money, cod, daysLeft, items, wasRead, wasReturned, _, canReply, isGM = GetInboxHeaderInfo(i)
 	if money == nil and subject == nil and sender == nil then return nil end
 	return {
 		sender = sender, subject = subject, money = type(money) == "number" and money or 0,
 		cod = type(cod) == "number" and cod or 0, days = type(daysLeft) == "number" and daysLeft or nil,
 		items = type(items) == "number" and items or 0, returned = wasReturned, canReply = canReply, gm = isGM,
+		icon = package or stationery, read = wasRead and true or false,
 	}
 end
 
@@ -59,23 +60,34 @@ local function expiry(days)
 	return math.floor(days) .. " d"
 end
 
-function Inbox.Refresh()
-	if not controls then return end
+Inbox.FreeSlots = freeSlots
+
+function Inbox.SummaryText()
 	local count, gold, items, soonest = Inbox.Summary()
 	local parts = { count .. (count == 1 and " mail" or " mails") }
 	if gold > 0 then parts[#parts + 1] = ACore.Money(gold) end
 	if items > 0 then parts[#parts + 1] = items .. (items == 1 and " item" or " items") end
 	if soonest then parts[#parts + 1] = "first expires in " .. expiry(soonest) end
 	if run then parts = { "opening " .. run.done .. " / " .. run.total, ACore.Money(run.gold) } end
-	controls.summary:SetText(table.concat(parts, "   "))
-	if soonest and soonest < 3 and not run then
-		controls.summary:SetTextColor(1, 0.4, 0.3)
-	else
-		controls.summary:SetTextColor(C.dim[1], C.dim[2], C.dim[3])
+	return table.concat(parts, "   "), (soonest and soonest < 3 and not run) and true or false
+end
+
+Inbox.Expiry = expiry
+
+function Inbox.Refresh()
+	if controls then
+		local text, urgent = Inbox.SummaryText()
+		controls.summary:SetText(text)
+		if urgent then
+			controls.summary:SetTextColor(1, 0.4, 0.3)
+		else
+			controls.summary:SetTextColor(C.dim[1], C.dim[2], C.dim[3])
+		end
+		controls.open:SetLabel(run and "Stop" or "Open all")
+		controls.gold:SetShown(not run)
+		Inbox.Tint()
 	end
-	controls.open:SetLabel(run and "Stop" or "Open all")
-	controls.gold:SetShown(not run)
-	Inbox.Tint()
+	ns:Fire("INBOX")
 end
 
 function Inbox.Tint()
@@ -170,12 +182,21 @@ function Inbox.Click(slot)
 	local page = InboxFrame.pageNum
 	if type(page) ~= "number" then page = 1 end
 	local index = (page - 1) * (INBOXITEMS_TO_DISPLAY or 7) + slot
-	local h = Inbox.Header(index)
-	if not h then return end
 	if IsShiftKeyDown and IsShiftKeyDown() then
+		Inbox.Quick(index, "take")
+	elseif IsControlKeyDown and IsControlKeyDown() then
+		Inbox.Quick(index, "return")
+	end
+end
+
+function Inbox.Quick(index, mode)
+	if not ns.Open() then return false end
+	local h = Inbox.Header(index)
+	if not h then return false end
+	if mode == "take" then
 		if h.cod > 0 then
 			ns.Print("that mail is cash on delivery, open it normally")
-			return
+			return false
 		end
 		if h.money > 0 and TakeInboxMoney then TakeInboxMoney(index) end
 		if h.items > 0 then
@@ -187,18 +208,21 @@ function Inbox.Click(slot)
 				end)
 			end
 		end
-		if InboxFrame.openMailID then InboxFrame.openMailID = nil end
+		if InboxFrame and InboxFrame.openMailID then InboxFrame.openMailID = nil end
 		if OpenMailFrame and OpenMailFrame.Hide then OpenMailFrame:Hide() end
-	elseif IsControlKeyDown and IsControlKeyDown() then
+		return true
+	elseif mode == "return" then
 		local deletable = InboxItemCanDelete and InboxItemCanDelete(index)
 		if deletable or h.returned or not ReturnInboxItem then
 			ns.Print("that mail cannot be returned")
-			return
+			return false
 		end
 		ReturnInboxItem(index)
 		ns.Print("returned " .. (h.subject or "mail") .. " to " .. (h.sender or "sender"))
 		if OpenMailFrame and OpenMailFrame.Hide then OpenMailFrame:Hide() end
+		return true
 	end
+	return false
 end
 
 local function build()

@@ -11,14 +11,17 @@ local defaults = {
 	chars = {},
 	recent = {},
 	lastSubject = "",
+	reskin = true,
+	window = { scale = 1 },
 }
 
 local charDefaults = {}
 
-ACore.New(ADDON, ns, { db = "AMailDB", defaults = defaults, char = "AMailCharDB", charDefaults = charDefaults })
+ACore.New(ADDON, ns, { db = "AMailDB", defaults = defaults, profile = true, shared = { "chars", "recent", "lastSubject" }, char = "AMailCharDB", charDefaults = charDefaults })
 
 ACore.Register({
 	name = "AMail",
+	options = function() return ns.Options() end,
 	title = "AMail",
 	slash = "/amail",
 	desc = "open all mail, send to alts",
@@ -61,6 +64,14 @@ function ns.Options()
 	local db = ns.db
 	local UI = ns.UI
 	local entries = {
+		{ text = "Window", title = true },
+		{
+			text = "Use the default mailbox window", checked = not db.reskin,
+			func = function()
+				db.reskin = not db.reskin
+				ns:Fire("RESKIN")
+			end,
+		},
 		{ text = "Inbox", title = true },
 		UI.Check(db, "skipCod", "Open all skips cash on delivery"),
 		UI.Check(db, "skipGm", "Open all skips game master mail"),

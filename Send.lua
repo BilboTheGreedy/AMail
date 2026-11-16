@@ -9,11 +9,11 @@ local batch
 local completing
 
 local function nameBox()
-	return SendMailNameEditBox
+	return (ns.Window and ns.Window.NameBox()) or SendMailNameEditBox
 end
 
 local function subjectBox()
-	return SendMailSubjectEditBox
+	return (ns.Window and ns.Window.SubjectBox()) or SendMailSubjectEditBox
 end
 
 function Send.Remember(name, subject)
@@ -84,6 +84,7 @@ local function recipientMenu(anchor)
 	end
 	UI.Menu(anchor, entries)
 end
+Send.RecipientMenu = recipientMenu
 
 local function slots(bag)
 	if C_Container and C_Container.GetContainerNumSlots then return C_Container.GetContainerNumSlots(bag) or 0 end
@@ -228,6 +229,7 @@ local function allMenu(anchor)
 	end
 	UI.Menu(anchor, entries)
 end
+Send.AllMenu = allMenu
 
 function Send.Quick(bag, slot)
 	if not ns.db.quick or not ns.Open() or batch then return false end
@@ -238,6 +240,7 @@ function Send.Quick(bag, slot)
 	if MailFrameTab_OnClick and (not SendMailFrame or not SendMailFrame:IsShown()) then
 		pcall(MailFrameTab_OnClick, nil, 2)
 	end
+	if ns.Window and ns.Window.Active() then ns.Window.SetTab("send") end
 	pickup(bag, slot)
 	ClickSendMailItemButton()
 	if not to or to == "" or not SendMail then
@@ -285,6 +288,10 @@ local function build()
 		SendMailFrame:HookScript("OnShow", function() Send.Shown() end)
 	end
 	ns.sendControls = controls
+end
+
+function Send.Busy()
+	return batch ~= nil
 end
 
 function Send.Shown()
