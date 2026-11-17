@@ -69,6 +69,13 @@ local function hideDefault(hide)
 	end
 end
 
+local function releaseFocus()
+	for _, name in ipairs({ "SendMailNameEditBox", "SendMailSubjectEditBox", "SendMailBodyEditBox" }) do
+		local box = _G[name]
+		if type(box) == "table" and box.HasFocus and box.ClearFocus and box:HasFocus() then box:ClearFocus() end
+	end
+end
+
 local function attachments(index)
 	local out = {}
 	if not GetInboxItem then return out end
@@ -419,10 +426,14 @@ local function doSend()
 		ns.Print("not enough money")
 		return false
 	end
-	if state.cod then
-		if SetSendMailCOD then pcall(SetSendMailCOD, copper) end
-	else
-		if SetSendMailMoney then pcall(SetSendMailMoney, copper) end
+	if SetSendMailCOD then pcall(SetSendMailCOD, 0) end
+	if SetSendMailMoney then pcall(SetSendMailMoney, 0) end
+	if copper > 0 then
+		if state.cod then
+			if SetSendMailCOD then pcall(SetSendMailCOD, copper) end
+		elseif SetSendMailMoney then
+			pcall(SetSendMailMoney, copper)
+		end
 	end
 	SendMail(to, subject, frame.bodyBox:GetText() or "")
 	return true
@@ -700,9 +711,15 @@ local function build()
 	buildSend(frame.body)
 
 	frame:SetScript("OnHide", function()
-		hideDefault(false)
 		if closing then return end
-		if ns.Open() and CloseMail then pcall(CloseMail) end
+		if ns.Open() and CloseMail then
+			pcall(CloseMail)
+			ns.After(1, function()
+				if not Window.Active() then hideDefault(false) end
+			end)
+		else
+			hideDefault(false)
+		end
 	end)
 	local elapsed = 0
 	frame:SetScript("OnUpdate", function(_, dt)
@@ -721,6 +738,7 @@ function Window.SetTab(tab)
 	frame.tabInbox:SetActive(tab == "inbox")
 	frame.tabSend:SetActive(tab == "send")
 	if MailFrameTab_OnClick then pcall(MailFrameTab_OnClick, nil, tab == "send" and 2 or 1) end
+	releaseFocus()
 	if tab == "send" then
 		if ns.db.keepSubject and (frame.subject.box:GetText() or "") == "" and ns.db.lastSubject ~= "" then
 			setting = true
@@ -774,6 +792,7 @@ ns:On("MAIL_SEND_SUCCESS", function()
 	if not Window.Active() then return end
 	if not Send.Busy() then clearSend() end
 	ns.After(0, function()
+		if Window.Active() then releaseFocus() end
 		if Window.Active() and state.tab == "send" then refreshSend() end
 	end)
 end)

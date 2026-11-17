@@ -194,6 +194,8 @@ local function sendNext()
 	b.sent = b.sent + n
 	b.mails = b.mails + 1
 	b.waiting = true
+	if SetSendMailCOD then pcall(SetSendMailCOD, 0) end
+	if SetSendMailMoney then pcall(SetSendMailMoney, 0) end
 	SendMail(b.to, b.label, "")
 end
 
@@ -241,12 +243,24 @@ function Send.Quick(bag, slot)
 		pcall(MailFrameTab_OnClick, nil, 2)
 	end
 	if ns.Window and ns.Window.Active() then ns.Window.SetTab("send") end
+	local already = 0
+	if GetSendMailItem then
+		for i = 1, ATTACHMENTS_MAX_SEND or 12 do
+			if GetSendMailItem(i) then already = already + 1 end
+		end
+	end
 	pickup(bag, slot)
 	ClickSendMailItemButton()
+	if already > 0 then
+		ns.Print("attached to the mail you are writing")
+		return true
+	end
 	if not to or to == "" or not SendMail then
 		ns.Print("attached, no previous recipient to send to")
 		return true
 	end
+	if SetSendMailCOD then pcall(SetSendMailCOD, 0) end
+	if SetSendMailMoney then pcall(SetSendMailMoney, 0) end
 	local name = it.link and it.link:match("%[(.-)%]") or "Item"
 	batch = { stacks = {}, label = name, to = to, sent = 1, mails = 1, waiting = true, quiet = true }
 	SendMail(to, name, "")

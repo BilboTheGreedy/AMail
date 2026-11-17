@@ -110,6 +110,7 @@ function Inbox.Stop(why)
 	run = nil
 	local parts = { "opened " .. r.done .. (r.done == 1 and " mail" or " mails") }
 	if r.gold > 0 then parts[#parts + 1] = "collected " .. ACore.Money(r.gold) end
+	if r.sales > 0 then parts[#parts + 1] = ACore.Money(r.sales) .. " from auctions" end
 	if r.skipped > 0 then parts[#parts + 1] = r.skipped .. " skipped" end
 	if why then parts[#parts + 1] = why end
 	ns.Print(table.concat(parts, ", "))
@@ -135,7 +136,13 @@ local function step()
 			r.tries = r.tries + 1
 			r.touched = true
 			if wantMoney and TakeInboxMoney then
-				if r.tries == 1 then r.gold = r.gold + h.money end
+				if r.tries == 1 then
+					r.gold = r.gold + h.money
+					if GetInboxInvoiceInfo then
+						local ok, kind = pcall(GetInboxInvoiceInfo, r.index)
+						if ok and kind == "seller" then r.sales = r.sales + h.money end
+					end
+				end
 				TakeInboxMoney(r.index)
 			elseif wantItems then
 				if freeSlots() < 1 then return Inbox.Stop("bags are full") end
@@ -168,7 +175,7 @@ function Inbox.OpenAll(goldOnly)
 		ns.Print(goldOnly and "no gold to collect" or "nothing to open")
 		return
 	end
-	run = { index = numItems(), goldOnly = goldOnly, total = total, done = 0, gold = 0, skipped = 0, tries = 0, touched = false }
+	run = { index = numItems(), goldOnly = goldOnly, total = total, done = 0, gold = 0, sales = 0, skipped = 0, tries = 0, touched = false }
 	Inbox.Refresh()
 	step()
 end
